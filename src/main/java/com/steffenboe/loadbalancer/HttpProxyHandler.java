@@ -2,5 +2,5 @@ package com.steffenboe.loadbalancer;
 
 public interface HttpProxyHandler {
     
-    void handleRequest(HttpRequest request);
+    String handleRequest(ProxyRequest request);
 }

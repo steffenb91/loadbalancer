@@ -1,26 +1,20 @@
 package com.steffenboe.loadbalancer;
 
-import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.ArrayList;
-import java.util.List;
 
 import io.undertow.Undertow;
-import io.undertow.server.handlers.proxy.LoadBalancingProxyClient;
-import io.undertow.server.handlers.proxy.ProxyHandler;
-import io.undertow.util.Headers;
 
 public class UndertowReverseProxyServer {
 
     private boolean isRunning = false;
-    private final List<String> hosts = new ArrayList<>();
+    private HttpProxyHandler httpProxyHandler;
 
-    UndertowReverseProxyServer(List<String> hosts) {
-        this.hosts.addAll(hosts);
+    UndertowReverseProxyServer(HttpProxyHandler httpProxyHandler) {
+        this.httpProxyHandler = httpProxyHandler;
     }
 
     public void startup(int port) throws URISyntaxException {
-        Undertow undertowServer = getUndertowServer();
+        Undertow undertowServer = undertowReverseProxyServer(port);
         Thread.ofVirtual().start(() -> {
             try {
                 undertowServer.start();
@@ -31,21 +25,22 @@ public class UndertowReverseProxyServer {
         isRunning = true;
     }
 
-    private Undertow getUndertowServer() throws URISyntaxException {
-        HttpProxyHandler reverseProxyHandler = new RoundRobinProxyHandler();
-        return undertowReverseProxyServer(reverseProxyHandler);
-    }
-
-    private Undertow undertowReverseProxyServer(HttpProxyHandler reverseProxyHandler) {
+    private Undertow undertowReverseProxyServer(int port) {
         return Undertow.builder()
-                .addHttpListener(8080, "localhost")
+                .addHttpListener(port, "localhost")
                 .setHandler(exchange -> {
-                    String host = exchange.getRequestHeaders().getFirst(Headers.HOST);
-                    String requestPath = exchange.getRequestURI();
+                    String host = exchange.getHostAndPort();
+                    System.out.println(host);
+                    String requestPath = exchange.getRequestPath();
+                    System.out.println(requestPath);
                     String queryString = exchange.getQueryString();
-                    HttpRequest request = new HttpRequest(exchange.getProtocol() + "://" + host + requestPath
-                            + (!queryString.isEmpty() ? "?" + queryString : ""));
-                    reverseProxyHandler.handleRequest(request);
+                    String proxyUri = requestPath
+                            + (!queryString.isEmpty() ? "?" + queryString : "");
+                    System.out.println(proxyUri);
+                    ProxyRequest request = new ProxyRequest(proxyUri);
+                    String responseString = httpProxyHandler.handleRequest(request); // Get response from handler
+                    exchange.getResponseHeaders().put(io.undertow.util.Headers.CONTENT_TYPE, "text/plain"); // Set content type
+                    exchange.getResponseSender().send(responseString); // Send the response
                 }).build();
     }
 

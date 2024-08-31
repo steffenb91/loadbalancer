@@ -1,5 +1,5 @@
 package com.steffenboe.loadbalancer;
 
-public record HttpRequest(String path) {
+public record ProxyRequest(String path) {
     
 }

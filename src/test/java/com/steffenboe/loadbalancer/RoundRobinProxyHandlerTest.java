@@ -15,10 +15,10 @@ public class RoundRobinProxyHandlerTest {
 
 	@Test
 	public void shouldHandleRequest() throws Exception {
-		HttpRequest request = new HttpRequest("/api/test");
-		Host host1 = mock(Host.class);
-		Host host2 = mock(Host.class);
-		Host host3 = mock(Host.class);
+		ProxyRequest request = new ProxyRequest("/api/test");
+		Proxy host1 = mock(Proxy.class);
+		Proxy host2 = mock(Proxy.class);
+		Proxy host3 = mock(Proxy.class);
 
 		RoundRobinProxyHandler roundRobinProxyHandler = new RoundRobinProxyHandler(host1, host2, host3);
 		roundRobinProxyHandler.handleRequest(request);
