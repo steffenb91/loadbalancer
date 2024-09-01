@@ -8,7 +8,7 @@ import java.util.ArrayList;
 public class RoundRobinProxyHandler implements HttpProxyHandler {
 
     private List<Proxy> proxies = new ArrayList<>();
-    private int lastProxyTarget = 0;
+    private int nextProxyTarget = 0;
     private static final Logger LOG = Logger.getLogger(RoundRobinProxyHandler.class.getName());
 
     public RoundRobinProxyHandler(Proxy... host) {
@@ -18,13 +18,14 @@ public class RoundRobinProxyHandler implements HttpProxyHandler {
     @Override
     public String handleRequest(ProxyRequest request) {
         try {
-            return proxies.get(lastProxyTarget).receive(request);
+            String response = proxies.get(nextProxyTarget ).receive(request);
+            nextProxyTarget = (nextProxyTarget + 1) % proxies.size();
+            return response;
         } catch (IOException e) {
             LOG.severe(e.getMessage());
         } catch (InterruptedException e) {
             LOG.severe(e.getMessage());
         }
-        lastProxyTarget = (lastProxyTarget + 1) % proxies.size();
         return "Failed to handle request";
     }
 

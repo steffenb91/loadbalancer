@@ -19,13 +19,26 @@ public class Proxy {
     }
 
     public String receive(ProxyRequest request) throws IOException, InterruptedException {
-        HttpClient client = HttpClient.newHttpClient();
-        HttpRequest httpRequest = HttpRequest.newBuilder()
+        HttpClient client = httpClient();
+        HttpRequest httpRequest = httpGetRequest(request);
+        HttpResponse<String> httpResponse = sendHttpRequest(client, httpRequest);
+        return httpResponse.body();
+    }
+
+    private HttpResponse<String> sendHttpRequest(HttpClient client, HttpRequest httpRequest)
+            throws IOException, InterruptedException {
+        return client.send(httpRequest, HttpResponse.BodyHandlers.ofString());
+    }
+
+    private HttpRequest httpGetRequest(ProxyRequest request) {
+        return HttpRequest.newBuilder()
                 .uri(URI.create(adress + request.path()))
                 .GET()
                 .build();
-        HttpResponse<String> response = client.send(httpRequest, HttpResponse.BodyHandlers.ofString());
-        return response.body();
+    }
+
+    private HttpClient httpClient() {
+        return HttpClient.newHttpClient();
     }
 
 }
