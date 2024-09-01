@@ -5,10 +5,13 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.logging.*;
 
 public class Proxy {
 
     private final String adress;
+    private static final Logger LOG = Logger.getLogger(Proxy.class.getName());
+
 
     Proxy(String adress) {
         this.adress = adress;
@@ -19,9 +22,9 @@ public class Proxy {
     }
 
     public String receive(ProxyRequest request) throws IOException, InterruptedException {
-        HttpClient client = httpClient();
-        HttpRequest httpRequest = httpGetRequest(request);
-        HttpResponse<String> httpResponse = sendHttpRequest(client, httpRequest);
+        LOG.info("Received request on address " + adress);
+        HttpResponse<String> httpResponse = sendHttpRequest(httpClient(), httpGetRequest(request));
+        LOG.info("Successfully proxied request to " + adress);
         return httpResponse.body();
     }
 

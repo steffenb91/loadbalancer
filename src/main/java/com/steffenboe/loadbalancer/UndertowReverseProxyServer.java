@@ -29,18 +29,14 @@ public class UndertowReverseProxyServer {
         return Undertow.builder()
                 .addHttpListener(port, "localhost")
                 .setHandler(exchange -> {
-                    String host = exchange.getHostAndPort();
-                    System.out.println(host);
                     String requestPath = exchange.getRequestPath();
-                    System.out.println(requestPath);
                     String queryString = exchange.getQueryString();
                     String proxyUri = requestPath
                             + (!queryString.isEmpty() ? "?" + queryString : "");
-                    System.out.println(proxyUri);
                     ProxyRequest request = new ProxyRequest(proxyUri);
-                    String responseString = httpProxyHandler.handleRequest(request); // Get response from handler
-                    exchange.getResponseHeaders().put(io.undertow.util.Headers.CONTENT_TYPE, "text/plain"); // Set content type
-                    exchange.getResponseSender().send(responseString); // Send the response
+                    String responseString = httpProxyHandler.handleRequest(request); 
+                    exchange.getResponseHeaders().put(io.undertow.util.Headers.CONTENT_TYPE, "text/plain");
+                    exchange.getResponseSender().send(responseString); 
                 }).build();
     }
 
