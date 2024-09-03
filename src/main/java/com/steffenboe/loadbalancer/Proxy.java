@@ -12,20 +12,19 @@ public class Proxy {
     private final String adress;
     private static final Logger LOG = Logger.getLogger(Proxy.class.getName());
 
-
     Proxy(String adress) {
         this.adress = adress;
     }
 
-    public String adress() {
-        return adress;
-    }
-
-    public String receive(ProxyRequest request) throws IOException, InterruptedException {
+    String receive(ProxyRequest request) throws IOException, InterruptedException {
         LOG.info("Received request on address " + adress);
-        HttpResponse<String> httpResponse = sendHttpRequest(httpClient(), httpGetRequest(request));
+        HttpResponse<String> httpResponse = sendHttpRequest(httpClient(), httpGetRequest(request.path()));
         LOG.info("Successfully proxied request to " + adress);
         return httpResponse.body();
+    }
+
+    boolean healthCheck(String path) throws IOException, InterruptedException {
+        return sendHttpRequest(httpClient(), httpGetRequest(path)).statusCode() == 200;
     }
 
     private HttpResponse<String> sendHttpRequest(HttpClient client, HttpRequest httpRequest)
@@ -33,9 +32,9 @@ public class Proxy {
         return client.send(httpRequest, HttpResponse.BodyHandlers.ofString());
     }
 
-    private HttpRequest httpGetRequest(ProxyRequest request) {
+    private HttpRequest httpGetRequest(String path) {
         return HttpRequest.newBuilder()
-                .uri(URI.create(adress + request.path()))
+                .uri(URI.create(adress + path))
                 .GET()
                 .build();
     }

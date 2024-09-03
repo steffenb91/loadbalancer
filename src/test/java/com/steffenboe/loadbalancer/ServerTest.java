@@ -16,21 +16,18 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import io.undertow.Undertow;
+
 @ExtendWith(MockitoExtension.class)
 public class ServerTest {
 
-	@BeforeEach
-	public void setup() throws InterruptedException {
+	@Test
+	void shouldProxyRequest() throws IOException, InterruptedException {
 		UndertowReverseProxyServer server = new UndertowReverseProxyServer(
 				new RoundRobinProxyHandler(new Proxy("http://localhost:8081")));
 		startServer(server, 8080);
 		UndertowReverseProxyServer targetServer = new UndertowReverseProxyServer(new LoggingProxyHandler("1"));
 		startServer(targetServer, 8081);
-
-	}
-
-	@Test
-	public void shouldProxyRequest() throws IOException, InterruptedException {
 		HttpClient client = HttpClient.newHttpClient();
 		HttpRequest httpRequest = HttpRequest.newBuilder()
 				.uri(URI.create("http://localhost:8080/api/test"))
