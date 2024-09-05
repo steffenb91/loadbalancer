@@ -1,61 +1,55 @@
 package com.steffenboe.loadbalancer;
 
-import static org.junit.jupiter.api.Assertions.fail;
-import static org.mockito.Mockito.inOrder;
-import static org.mockito.Mockito.mock;
-
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InOrder;
-import org.mockito.junit.jupiter.MockitoExtension;
-import java.net.URISyntaxException;
-import static org.hamcrest.Matchers.*;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.Mockito.*;
-import org.hamcrest.CoreMatchers;
+import static org.hamcrest.Matchers.is;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import java.io.IOException;
+import java.util.stream.IntStream;
+
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
-import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.Mock;
+
 import io.undertow.Undertow;
 
 @ExtendWith(MockitoExtension.class)
 class RoundRobinProxyHandlerTest {
 
+	private Undertow undertowServer;
+
+	@AfterEach
+	void tearDown() throws Exception {
+		if (undertowServer != null) {
+			undertowServer.stop();
+		}
+	}
+
 	@Test
 	void shouldHandleRequest() throws Exception {
+		Proxy[] proxies = getThreeMockProxies();
+		RoundRobinProxyHandler roundRobinProxyHandler = new RoundRobinProxyHandler(1000,
+				proxies);
+
+		Thread.sleep(2000);
+
 		ProxyRequest request = new ProxyRequest("/api/test");
-		Proxy host1 = mock(Proxy.class);
-		Proxy host2 = mock(Proxy.class);
-		Proxy host3 = mock(Proxy.class);
-
-		RoundRobinProxyHandler roundRobinProxyHandler = new RoundRobinProxyHandler(host1, host2, host3);
-
-		roundRobinProxyHandler.handleRequest(request);
-		roundRobinProxyHandler.handleRequest(request);
-		roundRobinProxyHandler.handleRequest(request);
-		roundRobinProxyHandler.handleRequest(request);
-
-		InOrder inOrder = inOrder(host1, host2, host3, host1);
-
-		inOrder.verify(host1).receive(request);
-		inOrder.verify(host2).receive(request);
-		inOrder.verify(host3).receive(request);
-		inOrder.verify(host1).receive(request);
+		handleRequestThreeTimes(roundRobinProxyHandler, request);
+		verifyEachProxyGotRequest(proxies, request);
 	}
 
 	@Test
 	void shouldProxyToHealthyServers() throws InterruptedException {
 		startUndertowServer(8081, 200);
-		RoundRobinProxyHandler roundRobinProxyHandler = new RoundRobinProxyHandler(new Proxy("http://localhost:8081/"));
+		RoundRobinProxyHandler roundRobinProxyHandler = new RoundRobinProxyHandler(
+				1000, new Proxy("http://localhost:8081/",
+						"/health"));
+
 		Thread.sleep(1000);
+
 		String response = roundRobinProxyHandler.handleRequest(new ProxyRequest("/api/test"));
 		assertThat(response, is("Ok"));
 	}
@@ -63,43 +57,58 @@ class RoundRobinProxyHandlerTest {
 	@Test
 	void shouldNotProxyToUnhealthyServers() throws InterruptedException {
 		startUndertowServer(8081, 400);
-		RoundRobinProxyHandler roundRobinProxyHandler = new RoundRobinProxyHandler(new Proxy("http://localhost:8081/"));
+		RoundRobinProxyHandler roundRobinProxyHandler = new RoundRobinProxyHandler(
+				1000, new Proxy("http://localhost:8081/", "/health"));
+
 		Thread.sleep(1000);
+
 		String response = roundRobinProxyHandler.handleRequest(new ProxyRequest("/api/test"));
 		assertThat(response, is("No healthy proxies"));
 	}
 
-	private void startUndertowServer(int port, int responseCode) throws InterruptedException {
-		Undertow testServer = Undertow.builder()
+	private void verifyEachProxyGotRequest(Proxy[] proxies, ProxyRequest request)
+			throws IOException, InterruptedException {
+		for (Proxy proxy : proxies) {
+			verify(proxy).receive(request);
+		}
+	}
+
+	private void handleRequestThreeTimes(RoundRobinProxyHandler roundRobinProxyHandler, ProxyRequest request) {
+		IntStream.range(0, 3)
+				.forEach(i -> roundRobinProxyHandler.handleRequest(request));
+	}
+
+	private Proxy[] getThreeMockProxies() throws IOException, InterruptedException {
+		Proxy[] proxies = { mock(Proxy.class), mock(Proxy.class), mock(Proxy.class) };
+		for (Proxy proxy : proxies) {
+			when(proxy.healthCheck()).thenReturn(true);
+		}
+		return proxies;
+	}
+
+	private void startUndertowServer(int port, int defaultResponse) throws InterruptedException {
+		undertowServer = getUndertowServer(port, defaultResponse);
+		Thread.ofVirtual().start(() -> {
+			startUndertowServer();
+		});
+		Thread.sleep(100);
+	}
+
+	private void startUndertowServer() {
+		try {
+			undertowServer.start();
+		} catch (Exception e) {
+			Thread.currentThread().interrupt();
+		}
+	}
+
+	private Undertow getUndertowServer(int port, int responseCode) {
+		return Undertow.builder()
 				.addHttpListener(port, "localhost")
 				.setHandler(exchange -> {
 					exchange.setStatusCode(responseCode);
+					exchange.getResponseSender().send("Ok");
 				}).build();
-		Thread.ofVirtual().start(() -> {
-			try {
-				testServer.start();
-			} catch (Exception e) {
-				Thread.currentThread().interrupt();
-			}
-		});
-		Thread.sleep(1000);
-	}
-
-	private void startServer(UndertowReverseProxyServer server, int port) throws InterruptedException {
-		Thread.ofVirtual().start(() -> {
-			try {
-				server.startup(port);
-			} catch (URISyntaxException e) {
-				fail(e);
-			}
-		});
-		waitForStartUp(server);
-	}
-
-	private void waitForStartUp(UndertowReverseProxyServer server) throws InterruptedException {
-		while (!server.isRunning()) {
-			Thread.sleep(100);
-		}
 	}
 
 }

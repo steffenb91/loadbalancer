@@ -7,29 +7,48 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.logging.*;
 
-public class Proxy {
+class Proxy {
 
     private final String adress;
+    private final String healthEndpoint;
+    private final HttpClient httpClient = HttpClient.newHttpClient();
+
     private static final Logger LOG = Logger.getLogger(Proxy.class.getName());
 
-    Proxy(String adress) {
+    Proxy(String adress, String healthEndpoint) {
         this.adress = adress;
+        this.healthEndpoint = healthEndpoint;
     }
 
+    /**
+     * Forwards the given request to the target adress.
+     * 
+     * @param request
+     * @return the backend server response
+     * @throws IOException
+     * @throws InterruptedException
+     */
     String receive(ProxyRequest request) throws IOException, InterruptedException {
         LOG.info("Received request on address " + adress);
-        HttpResponse<String> httpResponse = sendHttpRequest(httpClient(), httpGetRequest(request.path()));
+        HttpResponse<String> httpResponse = send(httpGetRequest(request.path()));
         LOG.info("Successfully proxied request to " + adress);
         return httpResponse.body();
     }
 
-    boolean healthCheck(String path) throws IOException, InterruptedException {
-        return sendHttpRequest(httpClient(), httpGetRequest(path)).statusCode() == 200;
+    /**
+     * Performs a simple health check against the backend adress.
+     * 
+     * @return true, if response is 200, false otherwise
+     * @throws IOException
+     * @throws InterruptedException
+     */
+    boolean healthCheck() throws IOException, InterruptedException {
+        return send(httpGetRequest(healthEndpoint)).statusCode() == 200;
     }
 
-    private HttpResponse<String> sendHttpRequest(HttpClient client, HttpRequest httpRequest)
+    private HttpResponse<String> send(HttpRequest httpRequest)
             throws IOException, InterruptedException {
-        return client.send(httpRequest, HttpResponse.BodyHandlers.ofString());
+        return httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
     }
 
     private HttpRequest httpGetRequest(String path) {
@@ -37,10 +56,6 @@ public class Proxy {
                 .uri(URI.create(adress + path))
                 .GET()
                 .build();
-    }
-
-    private HttpClient httpClient() {
-        return HttpClient.newHttpClient();
     }
 
 }

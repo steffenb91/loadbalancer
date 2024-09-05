@@ -5,25 +5,30 @@ import java.util.logging.Logger;
 import java.io.IOException;
 import java.util.ArrayList;
 
-public class RoundRobinProxyHandler implements HttpProxyHandler {
+class RoundRobinProxyHandler implements HttpProxyHandler {
 
     private List<Proxy> proxies = new ArrayList<>();
     private int nextProxyTarget = 0;
     private static final Logger LOG = Logger.getLogger(RoundRobinProxyHandler.class.getName());
 
-    private List<Proxy> healthyProxies = new ArrayList<>();
+    private volatile List<Proxy> healthyProxies = new ArrayList<>();
 
-    public RoundRobinProxyHandler(Proxy... host) {
-        this.proxies = List.of(host);
-        scheduleHealthChecks();
+    /**
+     * @param healthCheckPeriodinMs period to execute healthChecks in, e.g. every
+     *                              2000ms
+     * @param hosts                 List of backend servers requests are proxied to
+     */
+    RoundRobinProxyHandler(long healthCheckPeriodinMs, Proxy... hosts) {
+        this.proxies = List.of(hosts);
+        scheduleHealthChecks(healthCheckPeriodinMs);
     }
 
-    private void scheduleHealthChecks() {
+    private void scheduleHealthChecks(long period) {
         Thread.ofVirtual().start(() -> {
             while (true) {
                 try {
                     executeHealthChecks();
-                    Thread.sleep(1000);
+                    Thread.sleep(period);
                 } catch (InterruptedException e) {
                     LOG.severe("An error occured, stopping health checks: " + e.getMessage());
                     Thread.currentThread().interrupt();
@@ -37,8 +42,6 @@ public class RoundRobinProxyHandler implements HttpProxyHandler {
         for (Proxy proxy : proxies) {
             healthCheckProxy(proxy);
         }
-        ;
-
     }
 
     private void healthCheckProxy(Proxy proxy) {
@@ -54,7 +57,7 @@ public class RoundRobinProxyHandler implements HttpProxyHandler {
     }
 
     private void updateHealthyProxies(Proxy proxy) throws IOException, InterruptedException {
-        if (proxy.healthCheck("api/test")) {
+        if (proxy.healthCheck()) {
             healthyProxies.add(proxy);
             LOG.info("Proxy " + proxy + " is healthy");
         } else {

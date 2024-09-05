@@ -8,19 +8,35 @@ public class Main {
         int port = Integer.parseInt(args[0]);
         int option = Integer.parseInt(args[1]);
         if (option == 1) {
-            new UndertowReverseProxyServer(new LoggingProxyHandler("1")).startup(port);
+            startLoggingServer(port);
+        } else {
+            startProxyServer(args, port);
         }
-        if (option == 2) {
-            int serverArguments = 2;
-            List<Proxy> proxyTargets = new ArrayList<>();
-            while (serverArguments < args.length) {
-                System.out.println("adding proxy " + args[serverArguments]);
-                proxyTargets.add(new Proxy(args[serverArguments]));
-                serverArguments++;
-            }
-            new UndertowReverseProxyServer(new RoundRobinProxyHandler(proxyTargets.toArray(Proxy[]::new)))
-                    .startup(port);
-        }
+    }
 
+    private static void startProxyServer(String[] args, int port) throws URISyntaxException {
+        int serverArguments = 2;
+        List<Proxy> proxyTargets = new ArrayList<>();
+        while (serverArguments < args.length) {
+            serverArguments = addProxyFromArgs(args, serverArguments, proxyTargets);
+        }
+        proxyServer(proxyTargets).startup(port);
+    }
+
+    private static UndertowReverseProxyServer proxyServer(List<Proxy> proxyTargets) {
+        return new UndertowReverseProxyServer(
+                new RoundRobinProxyHandler(30000,
+                        proxyTargets.toArray(Proxy[]::new)));
+    }
+
+    private static int addProxyFromArgs(String[] args, int serverArguments, List<Proxy> proxyTargets) {
+        System.out.println("adding proxy " + args[serverArguments]);
+        proxyTargets.add(new Proxy(args[serverArguments], "/health"));
+        serverArguments++;
+        return serverArguments;
+    }
+
+    private static void startLoggingServer(int port) throws URISyntaxException {
+        new UndertowReverseProxyServer(new LoggingProxyHandler("1")).startup(port);
     }
 }
