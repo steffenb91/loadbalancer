@@ -1,7 +1,5 @@
 package com.steffenboe.loadbalancer;
 
-import static org.junit.jupiter.api.Assertions.fail;
-
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -43,11 +41,7 @@ public class MainTest {
 
 	private void startServer(String... args) throws InterruptedException {
 		Thread.ofVirtual().start(() -> {
-			try {
-				Main.main(args);
-			} catch (URISyntaxException e) {
-				fail(e);
-			}
+			Main.main(args);
 		});
 		Thread.sleep(1000);
 	}

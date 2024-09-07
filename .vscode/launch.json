@@ -6,16 +6,27 @@
     "configurations": [
         {
             "type": "java",
-            "name": "Current File",
+            "name": "Logging on 8080",
             "request": "launch",
-            "mainClass": "${file}"
+            "mainClass": "com.steffenboe.loadbalancer.Main",
+            "projectName": "loadbalancer",
+            "args": "-p 8080 -n backend1"
         },
         {
             "type": "java",
-            "name": "Main",
+            "name": "Logging on 8081",
             "request": "launch",
             "mainClass": "com.steffenboe.loadbalancer.Main",
-            "projectName": "loadbalancer"
+            "projectName": "loadbalancer",
+            "args": "-p 8081 -n backend2"
+        },
+        {
+            "type": "java",
+            "name": "Proxy on 8082",
+            "request": "launch",
+            "mainClass": "com.steffenboe.loadbalancer.Main",
+            "projectName": "loadbalancer",
+            "args": "http://localhost:8080 http://localhost:8081 -p 8082"
         }
     ]
 }
