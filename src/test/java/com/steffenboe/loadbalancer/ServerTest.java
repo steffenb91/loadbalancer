@@ -2,7 +2,6 @@ package com.steffenboe.loadbalancer;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
-import static org.junit.jupiter.api.Assertions.fail;
 
 import java.io.IOException;
 import java.net.URI;
@@ -19,7 +18,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 public class ServerTest {
 
 	@Test
-	void shouldProxyRequest() throws IOException, InterruptedException {
+	void shouldProxyRequest() throws IOException, InterruptedException, URISyntaxException {
 		UndertowReverseProxyServer proxyServer = undertowReverseProxyServer();
 		start(proxyServer, 8080);
 
@@ -27,7 +26,11 @@ public class ServerTest {
 		start(targetServer, 8081);
 
 		HttpResponse<String> response = requestProxyServer();
-		assertThat(response.body(), is("Server id 1 received request: /api/test"));
+		assertThat(response.body(), is("Server 1 received request on /api/test"));
+
+		proxyServer.stop();
+		targetServer.stop();
+
 	}
 
 	private HttpResponse<String> requestProxyServer() throws IOException, InterruptedException {
@@ -54,20 +57,7 @@ public class ServerTest {
 						new Proxy("http://localhost:8081", "/health")));
 	}
 
-	private void start(UndertowReverseProxyServer server, int port) throws InterruptedException {
-		Thread.ofVirtual().start(() -> {
-			try {
-				server.startup(port);
-			} catch (URISyntaxException e) {
-				fail(e);
-			}
-		});
-		waitForStartUp(server);
-	}
-
-	private void waitForStartUp(UndertowReverseProxyServer server) throws InterruptedException {
-		while (!server.isRunning()) {
-			Thread.sleep(100);
-		}
+	private void start(UndertowReverseProxyServer server, int port) throws InterruptedException, URISyntaxException {
+		server.startup(port);
 	}
 }

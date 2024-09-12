@@ -1,86 +1,47 @@
 package com.steffenboe.loadbalancer;
 
-import java.util.List;
-import java.util.logging.Logger;
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.List;
 
 class RoundRobinProxyHandler implements HttpProxyHandler {
 
-    private List<Proxy> proxies = new ArrayList<>();
-    private int nextProxyTarget = 0;
-    private static final Logger LOG = Logger.getLogger(RoundRobinProxyHandler.class.getName());
+    private final List<Proxy> proxies;
+    private final HealthCheck healthCheck;
 
-    private volatile List<Proxy> healthyProxies = new ArrayList<>();
+    private int nextProxyTarget = 0;
 
     /**
      * @param healthCheckPeriodinMs period to execute healthChecks in, e.g. every
      *                              2000ms
      * @param hosts                 List of backend servers requests are proxied to
+     * @throws InterruptedException
      */
     RoundRobinProxyHandler(long healthCheckPeriodinMs, Proxy... hosts) {
         this.proxies = List.of(hosts);
-        scheduleHealthChecks(healthCheckPeriodinMs);
-    }
-
-    private void scheduleHealthChecks(long period) {
-        Thread.ofVirtual().start(() -> {
-            while (true) {
-                try {
-                    executeHealthChecks();
-                    Thread.sleep(period);
-                } catch (InterruptedException e) {
-                    LOG.severe("An error occured, stopping health checks: " + e.getMessage());
-                    Thread.currentThread().interrupt();
-                }
-            }
-        });
-    }
-
-    private void executeHealthChecks() throws InterruptedException {
-        LOG.info("Checking backend server's health...");
-        for (Proxy proxy : proxies) {
-            healthCheckProxy(proxy);
-        }
-    }
-
-    private void healthCheckProxy(Proxy proxy) {
-        Thread.ofVirtual().start(() -> {
-            LOG.info("Checking proxy " + proxy);
-            try {
-                updateHealthyProxies(proxy);
-            } catch (IOException | InterruptedException e) {
-                LOG.severe("Failed to check proxy health: " + e.getMessage());
-                Thread.currentThread().interrupt();
-            }
-        });
-    }
-
-    private void updateHealthyProxies(Proxy proxy) throws IOException, InterruptedException {
-        if (proxy.healthCheck()) {
-            healthyProxies.add(proxy);
-            LOG.info("Proxy " + proxy + " is healthy");
-        } else {
-            healthyProxies.remove(proxy);
-            LOG.info("Proxy " + proxy + " is unhealthy");
-        }
+        healthCheck = new HealthCheck(proxies, healthCheckPeriodinMs);
+        healthCheck.schedule();
     }
 
     @Override
     public String handleRequest(ProxyRequest request) {
         try {
-            if (healthyProxies.isEmpty()) {
-                return "No healthy proxies";
-            }
-            String response = healthyProxies.get(nextProxyTarget).receive(request);
-            nextProxyTarget = (nextProxyTarget + 1) % healthyProxies.size();
-            return response;
-        } catch (IOException e) {
-            LOG.severe(e.getMessage());
-        } catch (InterruptedException e) {
-            LOG.severe(e.getMessage());
+            return dispatchToHealthyProxy(request);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
-        return "Failed to handle request";
+    }
+
+    private String dispatchToHealthyProxy(ProxyRequest request) throws IOException, InterruptedException {
+        if (healthCheck.healthyProxies().isEmpty()) {
+            throw new RuntimeException("No healthy proxies");
+        }
+        return requestNextHealthyProxy(request);
+    }
+
+    private String requestNextHealthyProxy(ProxyRequest request) throws IOException, InterruptedException {
+        String response = healthCheck.healthyProxies().get(nextProxyTarget).receive(request);
+        nextProxyTarget = (nextProxyTarget + 1) % healthCheck.healthyProxies().size();
+        return response;
     }
 
 }

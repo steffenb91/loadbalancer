@@ -2,6 +2,7 @@ package com.steffenboe.loadbalancer;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -62,8 +63,9 @@ class RoundRobinProxyHandlerTest {
 
 		Thread.sleep(1000);
 
-		String response = roundRobinProxyHandler.handleRequest(new ProxyRequest("/api/test"));
-		assertThat(response, is("No healthy proxies"));
+		assertThrows(RuntimeException.class, () -> {
+			roundRobinProxyHandler.handleRequest(new ProxyRequest("/api/test"));
+		});
 	}
 
 	private void verifyEachProxyGotRequest(Proxy[] proxies, ProxyRequest request)

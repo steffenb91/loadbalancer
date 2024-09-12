@@ -9,20 +9,15 @@ public class UndertowReverseProxyServer {
 
     private boolean isRunning = false;
     private HttpProxyHandler httpProxyHandler;
+    private Undertow undertowServer;
 
     UndertowReverseProxyServer(HttpProxyHandler httpProxyHandler) {
         this.httpProxyHandler = httpProxyHandler;
     }
 
     public void startup(int port) throws URISyntaxException {
-        Undertow undertowServer = undertowReverseProxyServer(port);
-        Thread.ofVirtual().start(() -> {
-            try {
-                undertowServer.start();
-            } catch (Exception e) {
-                Thread.currentThread().interrupt();
-            }
-        });
+        undertowServer = undertowReverseProxyServer(port);
+        undertowServer.start();
         isRunning = true;
     }
 
@@ -30,7 +25,7 @@ public class UndertowReverseProxyServer {
         return Undertow.builder()
                 .addHttpListener(port, "localhost")
                 .setHandler(exchange -> {
-                    respond(exchange); 
+                    respond(exchange);
                 }).build();
     }
 
@@ -39,9 +34,9 @@ public class UndertowReverseProxyServer {
         String queryString = exchange.getQueryString();
         String proxyUri = getFullProxyUri(requestPath, queryString);
         ProxyRequest request = new ProxyRequest(proxyUri);
-        
-        String responseString = httpProxyHandler.handleRequest(request); 
-        
+
+        String responseString = httpProxyHandler.handleRequest(request);
+
         sendResponse(exchange, responseString);
     }
 
@@ -55,9 +50,14 @@ public class UndertowReverseProxyServer {
                 + (!queryString.isEmpty() ? "?" + queryString : "");
     }
 
-    public boolean isRunning() {
+    synchronized boolean isRunning() {
         return isRunning;
 
+    }
+
+    void stop() {
+        undertowServer.stop();
+        isRunning = false;
     }
 
 }
