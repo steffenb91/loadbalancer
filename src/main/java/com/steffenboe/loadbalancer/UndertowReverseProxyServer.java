@@ -5,7 +5,7 @@ import java.net.URISyntaxException;
 import io.undertow.Undertow;
 import io.undertow.server.HttpServerExchange;
 
-public class UndertowReverseProxyServer {
+class UndertowReverseProxyServer {
 
     private boolean isRunning = false;
     private HttpProxyHandler httpProxyHandler;
@@ -15,7 +15,7 @@ public class UndertowReverseProxyServer {
         this.httpProxyHandler = httpProxyHandler;
     }
 
-    public void startup(int port) throws URISyntaxException {
+    void startup(int port) throws URISyntaxException {
         undertowServer = undertowReverseProxyServer(port);
         undertowServer.start();
         isRunning = true;

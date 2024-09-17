@@ -1,33 +1,21 @@
 package com.steffenboe.loadbalancer;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.is;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.util.stream.IntStream;
 
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import io.undertow.Undertow;
-
 @ExtendWith(MockitoExtension.class)
 class RoundRobinProxyHandlerTest {
-
-	private Undertow undertowServer;
-
-	@AfterEach
-	void tearDown() throws Exception {
-		if (undertowServer != null) {
-			undertowServer.stop();
-		}
-	}
 
 	@Test
 	void shouldHandleRequest() throws Exception {
@@ -35,37 +23,44 @@ class RoundRobinProxyHandlerTest {
 		RoundRobinProxyHandler roundRobinProxyHandler = new RoundRobinProxyHandler(1000,
 				proxies);
 
-		Thread.sleep(2000);
-
 		ProxyRequest request = new ProxyRequest("/api/test");
 		handleRequestThreeTimes(roundRobinProxyHandler, request);
 		verifyEachProxyGotRequest(proxies, request);
 	}
 
 	@Test
-	void shouldProxyToHealthyServers() throws InterruptedException {
-		startUndertowServer(8081, 200);
+	void shouldProxyToHealthyServers() throws InterruptedException, IOException {
+		Proxy healthyProxy = mock(Proxy.class);
+		when(healthyProxy.healthCheck()).thenReturn(true);
+		ProxyRequest request = new ProxyRequest("/api/test");
+		when(healthyProxy.receive(request)).thenReturn("Ok");
+
+		Proxy unhealthyProxy = mock(Proxy.class);
+		when(unhealthyProxy.healthCheck()).thenReturn(false);
+
 		RoundRobinProxyHandler roundRobinProxyHandler = new RoundRobinProxyHandler(
-				1000, new Proxy("http://localhost:8081/",
-						"/health"));
+				1, healthyProxy, unhealthyProxy);
 
-		Thread.sleep(1000);
+		handleRequestThreeTimes(roundRobinProxyHandler, request);
 
-		String response = roundRobinProxyHandler.handleRequest(new ProxyRequest("/api/test"));
-		assertThat(response, is("Ok"));
+		verify(healthyProxy, times(3)).receive(request);
+		verify(unhealthyProxy, never()).receive(request);
+
 	}
 
 	@Test
-	void shouldNotProxyToUnhealthyServers() throws InterruptedException {
-		startUndertowServer(8081, 400);
-		RoundRobinProxyHandler roundRobinProxyHandler = new RoundRobinProxyHandler(
-				1000, new Proxy("http://localhost:8081/", "/health"));
+	void shouldUpdateProxies() throws InterruptedException, IOException {
+		RoundRobinProxyHandler roundRobinProxyHandler = new RoundRobinProxyHandler(1000,
+				mock(Proxy.class));
 
-		Thread.sleep(1000);
+		roundRobinProxyHandler.handleRequest(new ProxyRequest("/api/test"));
 
-		assertThrows(RuntimeException.class, () -> {
-			roundRobinProxyHandler.handleRequest(new ProxyRequest("/api/test"));
-		});
+		Proxy[] updatedProxies = getThreeMockProxies();
+		roundRobinProxyHandler = roundRobinProxyHandler.updateProxies(updatedProxies);
+
+		ProxyRequest request = new ProxyRequest("api/test");
+		handleRequestThreeTimes(roundRobinProxyHandler, request);
+		verifyEachProxyGotRequest(updatedProxies, request);
 	}
 
 	private void verifyEachProxyGotRequest(Proxy[] proxies, ProxyRequest request)
@@ -83,34 +78,9 @@ class RoundRobinProxyHandlerTest {
 	private Proxy[] getThreeMockProxies() throws IOException, InterruptedException {
 		Proxy[] proxies = { mock(Proxy.class), mock(Proxy.class), mock(Proxy.class) };
 		for (Proxy proxy : proxies) {
-			when(proxy.healthCheck()).thenReturn(true);
+			lenient().when(proxy.healthCheck()).thenReturn(true);
 		}
 		return proxies;
-	}
-
-	private void startUndertowServer(int port, int defaultResponse) throws InterruptedException {
-		undertowServer = getUndertowServer(port, defaultResponse);
-		Thread.ofVirtual().start(() -> {
-			startUndertowServer();
-		});
-		Thread.sleep(100);
-	}
-
-	private void startUndertowServer() {
-		try {
-			undertowServer.start();
-		} catch (Exception e) {
-			Thread.currentThread().interrupt();
-		}
-	}
-
-	private Undertow getUndertowServer(int port, int responseCode) {
-		return Undertow.builder()
-				.addHttpListener(port, "localhost")
-				.setHandler(exchange -> {
-					exchange.setStatusCode(responseCode);
-					exchange.getResponseSender().send("Ok");
-				}).build();
 	}
 
 }

@@ -7,8 +7,9 @@ import java.util.logging.Logger;
 
 class HealthCheck {
 
-    private long periodInMs;
-    private List<Proxy> proxies;
+    private final long periodInMs;
+    private final List<Proxy> proxies;
+    
     private volatile List<Proxy> healthyProxies;
     private static final Logger LOG = Logger.getLogger(HealthCheck.class.getName());
 
@@ -19,6 +20,7 @@ class HealthCheck {
     }
 
     void schedule(){
+        executeHealthChecks();
         Thread.ofVirtual().start(() -> {
             performPeriodicHealthChecks(periodInMs);
         });

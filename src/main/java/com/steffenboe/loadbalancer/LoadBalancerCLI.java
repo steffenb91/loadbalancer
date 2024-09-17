@@ -15,8 +15,12 @@ public class LoadBalancerCLI implements Callable<Integer> {
     private String name;
     @Option(names = { "-p", "--port" }, description = "Port to listen on", defaultValue = "8080")
     private int port;
+    @Option(names = { "-f", "--file" }, description = "File to watch with backend addresses", defaultValue = "file.txt")
+    private String file;
     @Parameters(index = "0", arity = "0..*", description = "Backend server addresses.")
     private String[] proxyAddresses;
+
+    private ProxyProvider proxyProvider;
 
     private static final Logger LOG = Logger.getLogger(LoadBalancerCLI.class.getName());
 
@@ -34,18 +38,16 @@ public class LoadBalancerCLI implements Callable<Integer> {
     }
 
     private void startProxyServer() throws URISyntaxException {
-        Proxy[] proxies = getProxies();
-        new UndertowReverseProxyServer(
-                new RoundRobinProxyHandler(30000, proxies))
-                .startup(port);
-    }
-
-    private Proxy[] getProxies() {
-        Proxy[] proxies = new Proxy[proxyAddresses.length];
-        for (int i = 0; i < proxyAddresses.length; i++) {
-            proxies[i] = new Proxy(proxyAddresses[i], "/health");
+        if(proxyAddresses != null && proxyAddresses.length > 0){
+            proxyProvider = new CLIProxyProvider(proxyAddresses);
+        } else {
+            proxyProvider = new FileProxyProvider(file);
         }
-        return proxies;
+        Proxy[] proxies = proxyProvider.getProxies();
+        RoundRobinProxyHandler roundRobinProxyHandler = new RoundRobinProxyHandler(30000, proxies);
+        
+        new UndertowReverseProxyServer(roundRobinProxyHandler)
+                .startup(port);
     }
 
     private void startLoggingServer() throws URISyntaxException, InterruptedException {

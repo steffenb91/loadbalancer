@@ -1,14 +1,16 @@
 package com.steffenboe.loadbalancer;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 class RoundRobinProxyHandler implements HttpProxyHandler {
 
-    private final List<Proxy> proxies;
+    private volatile List<Proxy> proxies;
     private final HealthCheck healthCheck;
 
     private int nextProxyTarget = 0;
+    private long healthCheckPeriodinMs;
 
     /**
      * @param healthCheckPeriodinMs period to execute healthChecks in, e.g. every
@@ -17,8 +19,9 @@ class RoundRobinProxyHandler implements HttpProxyHandler {
      * @throws InterruptedException
      */
     RoundRobinProxyHandler(long healthCheckPeriodinMs, Proxy... hosts) {
-        this.proxies = List.of(hosts);
-        healthCheck = new HealthCheck(proxies, healthCheckPeriodinMs);
+        this.proxies = new ArrayList<>(List.of(hosts));
+        this.healthCheckPeriodinMs = healthCheckPeriodinMs;
+        healthCheck = new HealthCheck(proxies, this.healthCheckPeriodinMs);
         healthCheck.schedule();
     }
 
@@ -42,6 +45,10 @@ class RoundRobinProxyHandler implements HttpProxyHandler {
         String response = healthCheck.healthyProxies().get(nextProxyTarget).receive(request);
         nextProxyTarget = (nextProxyTarget + 1) % healthCheck.healthyProxies().size();
         return response;
+    }
+
+    public RoundRobinProxyHandler updateProxies(Proxy[] proxies) {
+        return new RoundRobinProxyHandler(this.healthCheckPeriodinMs, proxies);
     }
 
 }
