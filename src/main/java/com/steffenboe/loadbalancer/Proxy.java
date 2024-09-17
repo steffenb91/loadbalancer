@@ -58,4 +58,9 @@ class Proxy {
                 .build();
     }
 
+    @Override
+    public String toString() {
+        return "Proxy: " + adress;
+    }
+
 }

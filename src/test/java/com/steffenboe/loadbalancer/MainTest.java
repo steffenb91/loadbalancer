@@ -29,8 +29,8 @@ public class MainTest {
 
 	@Test
 	void shouldWatchFile() throws InterruptedException, IOException, ExecutionException {
-		startServer("-p", "8080", "n", "log1");
-		startServer("-p", "8081", "-f", "file.txt");
+		startServer("-p", "8080", "-n", "log1");
+		startServer("-p", "8081", "-f", "src/test/resources/file.txt");
 		client.sendHttpGetRequest("http://localhost:8081/api/test");
 	}
 
@@ -38,6 +38,7 @@ public class MainTest {
 		Thread.ofVirtual().start(() -> {
 			Main.main(args);
 		});
+		Thread.sleep(10);
 	}
 
 }
